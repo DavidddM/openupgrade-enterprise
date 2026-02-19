@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="social_twitter.social_media_twitter" model="social.media">
+            <field name="name">X</field>
+            <field name="media_description">Manage your X accounts and schedule posts</field>
+        </record>
+        <record id="social_twitter.stream_type_twitter_follow" model="social.stream.type">
+            <field name="name">Posts of</field>
+        </record>
+    </data>
+</odoo>
