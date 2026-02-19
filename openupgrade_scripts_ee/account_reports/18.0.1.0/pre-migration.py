@@ -70,6 +70,34 @@ def _add_annotation_columns(env):
         )
 
 
+def _rename_opening_date_filter_keys(env):
+    """Rename default_opening_date_filter selection keys last_* → previous_*.
+
+    In 17.0, account.report used last_month/last_quarter/last_year/last_tax_period.
+    In 18.0, these were renamed to previous_month/previous_quarter/previous_year/
+    previous_tax_period.
+
+    The community OpenUpgrade account/18.0.1.3 pre-migration has this conversion
+    backwards (previous_* → last_*, which is a no-op on 17.0 data). Without
+    correction, the ORM crashes during flush/recompute with:
+        ValueError: Wrong value for account.report.default_opening_date_filter: 'last_month'
+
+    We compensate here because account_reports extends account.report and its 18.0
+    data files depend on previous_* values. This runs after the community account
+    script and before the ORM flush. If the community script is ever fixed, the
+    WHERE clause simply matches zero rows.
+    """
+    openupgrade.logged_query(
+        env.cr,
+        """
+        UPDATE account_report
+        SET default_opening_date_filter = 'previous_' || substr(
+            default_opening_date_filter, 6)
+        WHERE left(default_opening_date_filter, 5) = 'last_'
+        """,
+    )
+
+
 def _preserve_tax_closing_end_date(env):
     if openupgrade.column_exists(env.cr, "account_move", "tax_closing_end_date"):
         openupgrade.copy_columns(
@@ -210,3 +238,4 @@ def migrate(env, version):
     openupgrade.rename_xmlids(env.cr, _xmlid_renames)
     _delete_obsolete_report_lines(env)
     _preserve_tax_closing_end_date(env)
+    _rename_opening_date_filter_keys(env)
