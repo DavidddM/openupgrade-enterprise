@@ -16,12 +16,16 @@ def _migrate_ar_certificates(env):
 
     OpenUpgrade preserves the old Binary columns. We create certificate/key
     records and set the new M2O fields.
+
+    For each company with certificate data:
+    1. Create a certificate.key record from the private key binary.
+    2. Create a certificate.certificate record from the certificate binary.
+    3. Set the M2O fields on res.company.
     """
     if not openupgrade.column_exists(
         env.cr, "res_company", "l10n_ar_afip_ws_crt"
     ):
         return
-    # Find companies that have certificate data
     env.cr.execute(
         """
         SELECT id, l10n_ar_afip_ws_key, l10n_ar_afip_ws_crt,
@@ -32,7 +36,6 @@ def _migrate_ar_certificates(env):
     )
     for company_id, key_binary, crt_binary, crt_fname in env.cr.fetchall():
         new_key_id = None
-        # Create certificate.key record from private key
         if key_binary:
             env.cr.execute(
                 """
@@ -67,12 +70,10 @@ def _migrate_ar_certificates(env):
                     "company_id": company_id,
                 },
             )
-            # Set the M2O on res.company
             env.cr.execute(
                 "UPDATE res_company SET l10n_ar_afip_ws_key_id = %s WHERE id = %s",
                 (new_key_id, company_id),
             )
-        # Create certificate.certificate record from certificate
         if crt_binary:
             env.cr.execute(
                 """

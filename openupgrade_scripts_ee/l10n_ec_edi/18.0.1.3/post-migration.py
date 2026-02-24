@@ -12,13 +12,15 @@ def _migrate_ec_certificates(env):
     attachment=True).
 
     In 18.0: l10n_ec_edi extends the unified certificate.certificate model.
+
+    Reads old certificate metadata and binary content from ir_attachment,
+    creates certificate.certificate records, and updates company references.
     """
     if not openupgrade.table_exists(env.cr, "l10n_ec_edi_certificate"):
         return
     env.cr.execute("SELECT COUNT(*) FROM l10n_ec_edi_certificate")
     if not env.cr.fetchone()[0]:
         return
-    # Read old certificate metadata + binary content from ir_attachment
     env.cr.execute(
         """
         SELECT

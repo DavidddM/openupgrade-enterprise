@@ -90,10 +90,11 @@ def _split_tax_treatment_option(env):
       - l10n_au_tax_treatment_option_actor (for category A): options D,P
       - l10n_au_tax_treatment_option_voluntary (for category V): options C,O
       - l10n_au_tax_treatment_option_seniors (for category S): options S,M,I
+
+    The legacy column may not exist if it was a non-stored compute with no data.
     """
     legacy_option = _get_contract_legacy("l10n_au_tax_treatment_option")
     legacy_category = openupgrade.get_legacy_name("l10n_au_tax_treatment_category")
-    # Column may not exist if it was a non-stored compute with no data
     if not openupgrade.column_exists(env.cr, "hr_contract", legacy_option):
         return
     openupgrade.logged_query(

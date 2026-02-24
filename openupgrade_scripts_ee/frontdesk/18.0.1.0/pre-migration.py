@@ -4,7 +4,11 @@ from openupgradelib import openupgrade
 
 
 def _populate_visitor_company_id(env):
-    """Populate required company_id on frontdesk.visitor from its station."""
+    """Populate required company_id on frontdesk.visitor from its station.
+
+    Falls back to company_id=1 for visitors without a station or stations
+    without a company.
+    """
     openupgrade.logged_query(
         env.cr,
         """
@@ -22,7 +26,6 @@ def _populate_visitor_company_id(env):
         AND fv.company_id IS NULL
         """,
     )
-    # Fallback for visitors without a station or station without a company
     openupgrade.logged_query(
         env.cr,
         """

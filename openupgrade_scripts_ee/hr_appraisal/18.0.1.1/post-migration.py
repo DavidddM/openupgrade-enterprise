@@ -9,13 +9,16 @@ def _create_appraisal_templates(env):
     In v17, feedback HTML was stored directly on res.company and hr.department.
     In v18, a new hr.appraisal.template model holds the templates, and
     company/department point to it via M2O.
+
+    Steps:
+    1. Create a template for each company that has custom feedback content.
+    2. Handle departments with custom templates (custom_appraisal_templates=True).
     """
     legacy_emp = openupgrade.get_legacy_name("appraisal_employee_feedback_template")
     legacy_mgr = openupgrade.get_legacy_name("appraisal_manager_feedback_template")
     legacy_dept_emp = openupgrade.get_legacy_name("employee_feedback_template")
     legacy_dept_mgr = openupgrade.get_legacy_name("manager_feedback_template")
     legacy_custom = openupgrade.get_legacy_name("custom_appraisal_templates")
-    # Create a template for each company that has custom feedback content
     env.cr.execute(
         f"""
         SELECT id, {legacy_emp}, {legacy_mgr}
@@ -40,7 +43,6 @@ def _create_appraisal_templates(env):
             "UPDATE res_company SET appraisal_template_id = %s WHERE id = %s",
             (template.id, company_id),
         )
-    # Handle departments with custom templates
     env.cr.execute(
         f"""
         SELECT d.id, d.company_id, d.{legacy_dept_emp}, d.{legacy_dept_mgr}

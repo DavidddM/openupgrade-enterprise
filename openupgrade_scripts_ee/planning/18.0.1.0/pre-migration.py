@@ -39,7 +39,8 @@ def _convert_duration_to_duration_days(env):
     17.0: duration (Float, hours, stored) + duration_days (computed, NOT stored)
     18.0: duration removed, duration_days (Integer, stored, default=1)
 
-    Logic: duration_days = CEIL(duration / 8.0), minimum 1
+    Logic: duration_days = CEIL(duration / 8.0), minimum 1.
+    Records where duration was NULL get default value of 1.
     """
     openupgrade.logged_query(
         env.cr,
@@ -56,7 +57,6 @@ def _convert_duration_to_duration_days(env):
         WHERE duration IS NOT NULL
         """,
     )
-    # Set default for any records where duration was NULL
     openupgrade.logged_query(
         env.cr,
         """

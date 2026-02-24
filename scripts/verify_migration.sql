@@ -913,6 +913,26 @@ ELSE
 END IF;
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- TEST 54: Orphaned enterprise modules merged (no ghost installed records)
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+    v_count INTEGER;
+BEGIN
+SELECT COUNT(*) INTO v_count
+FROM ir_module_module
+WHERE name IN ('l10n_be_codabox_bridge', 'l10n_be_codabox_bridge_wizard',
+               'l10n_cl_edi_boletas', 'l10n_mx_edi_stock_30')
+  AND state = 'installed';
+IF v_count = 0 THEN
+    INSERT INTO _ou_test_results VALUES (54, 'base: orphaned bridge modules merged', 'PASS', NULL);
+ELSE
+    INSERT INTO _ou_test_results VALUES (54, 'base: orphaned bridge modules merged', 'FAIL',
+        v_count || ' modules still installed');
+END IF;
+END $$;
+
 -- =============================================================================
 -- SUMMARY
 -- =============================================================================

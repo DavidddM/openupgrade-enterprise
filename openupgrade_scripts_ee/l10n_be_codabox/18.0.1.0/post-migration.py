@@ -5,11 +5,14 @@ from openupgradelib import openupgrade
 
 @openupgrade.migrate()
 def migrate(env, version):
-    # l10n_be_codabox_is_connected changed from a plain Boolean to a
-    # computed+stored field. The compute method calls an external CodaBox API
-    # endpoint, which would cause timeouts/errors during migration.
-    # Ensure data consistency to prevent the ORM from triggering a recompute:
-    # set is_connected = FALSE for companies with no IAP token.
+    """Ensure CodaBox connection flag consistency to prevent ORM recompute.
+
+    l10n_be_codabox_is_connected changed from a plain Boolean to a
+    computed+stored field. The compute method calls an external CodaBox API
+    endpoint, which would cause timeouts/errors during migration.
+    Set is_connected=FALSE for companies with no IAP token to prevent
+    the ORM from triggering a recompute.
+    """
     openupgrade.logged_query(
         env.cr,
         """

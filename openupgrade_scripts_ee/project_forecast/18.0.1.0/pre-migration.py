@@ -13,6 +13,10 @@ def _migrate_project_id_from_company_dependent(env):
     Reads values from ir_property and populates the new column. Since
     company_dependent fields can have per-company values, we take the first
     non-null value found (templates are typically single-company anyway).
+
+    Populates from ir_property by extracting the integer ID from res_id
+    (format: 'planning.slot.template,<id>') and the integer value from
+    value_reference (format: 'project.project,<id>').
     """
     openupgrade.logged_query(
         env.cr,
@@ -21,9 +25,6 @@ def _migrate_project_id_from_company_dependent(env):
         ADD COLUMN IF NOT EXISTS project_id integer
         """,
     )
-    # Populate from ir_property. The res_id format is 'planning.slot.template,<id>'.
-    # We extract the integer ID from res_id and the integer value from value_reference
-    # (format: 'project.project,<id>').
     openupgrade.logged_query(
         env.cr,
         """

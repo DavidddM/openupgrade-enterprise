@@ -12,13 +12,16 @@ def _migrate_pe_certificates(env):
     attachment=True).
 
     In 18.0: l10n_pe_edi uses the unified certificate.certificate model.
+
+    Reads old certificate metadata and binary content from ir_attachment,
+    creates certificate.certificate records, and force-sets
+    l10n_pe_edi_certificate_id on companies.
     """
     if not openupgrade.table_exists(env.cr, "l10n_pe_edi_certificate"):
         return
     env.cr.execute("SELECT COUNT(*) FROM l10n_pe_edi_certificate")
     if not env.cr.fetchone()[0]:
         return
-    # Read old certificate metadata + binary content from ir_attachment
     env.cr.execute(
         """
         SELECT
@@ -86,7 +89,6 @@ def _migrate_pe_certificates(env):
                     "wr_date": wr_date,
                 },
             )
-    # Force-set l10n_pe_edi_certificate_id on companies
     if openupgrade.column_exists(
         env.cr, "res_company", "l10n_pe_edi_certificate_id"
     ):

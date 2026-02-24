@@ -24,6 +24,11 @@ _merged_modules = [
     ("documents_spreadsheet_crm", "documents_spreadsheet"),
     # Merged in 18.0 (commit 74e6363)
     ("website_sale_renting_product_configurator", "website_sale_renting"),
+    # Code absorbed into parent modules in v18 (dirs exist but no __manifest__.py)
+    ("l10n_be_codabox_bridge", "l10n_be_codabox"),
+    ("l10n_be_codabox_bridge_wizard", "l10n_be_codabox"),
+    ("l10n_cl_edi_boletas", "l10n_cl_edi"),
+    ("l10n_mx_edi_stock_30", "l10n_mx_edi_stock"),
 ]
 
 

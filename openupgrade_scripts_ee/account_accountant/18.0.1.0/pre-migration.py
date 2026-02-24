@@ -33,8 +33,11 @@ def _create_missing_l10n_ke_tax_tags(env):
     which expects tags to already exist, raising:
         UserError: missing tax tag -WH Sales for country Kenya
 
-    We pre-create the full set of referenced tags here (before post_init runs).
-    Tags that already exist are skipped via ON CONFLICT.
+    We pre-create the full set of tag names referenced in
+    l10n_ke/data/template/account.tax-ke.csv (each name appears in both +/-
+    variants as is standard for Odoo tax tags). Tags that already exist are
+    skipped via ON CONFLICT. Handles both varchar (v17 schema) and jsonb
+    (after base upgrade converts translatable fields) name column formats.
     """
     env.cr.execute(
         "SELECT id FROM ir_module_module WHERE name = 'l10n_ke' AND state IN %s",
@@ -49,8 +52,6 @@ def _create_missing_l10n_ke_tax_tags(env):
     if not row:
         return
     country_id = row[0]
-    # Full set of tag names referenced in l10n_ke/data/template/account.tax-ke.csv.
-    # Each name appears in both +/- variants as is standard for Odoo tax tags.
     tag_base_names = [
         "16% Sales Base", "16% Sales Tax",
         "8% Sales Base", "8% Sales Tax",
@@ -65,8 +66,6 @@ def _create_missing_l10n_ke_tax_tags(env):
     for base in tag_base_names:
         tag_names.append("+" + base)
         tag_names.append("-" + base)
-    # The name column may be varchar (v17 schema) or jsonb (after base upgrade
-    # converts translatable fields). Detect which format to use.
     env.cr.execute(
         """
         SELECT data_type FROM information_schema.columns

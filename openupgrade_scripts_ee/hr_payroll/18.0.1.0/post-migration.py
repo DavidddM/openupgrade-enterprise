@@ -11,9 +11,13 @@ def _migrate_salary_attachment_types(env):
     Standard records share the same code (ATTACH_SALARY, ASSIG_SALARY,
     CHILD_SUPPORT). Custom records are migrated by creating new
     hr.payslip.input.type entries.
+
+    Steps:
+    1. Migrate custom attachment types that don't match standard codes by
+       inserting them into hr_payslip_input_type.
+    2. Map old deduction_type_id to new other_input_type_id via code match.
     """
     legacy_col = openupgrade.get_legacy_name("deduction_type_id")
-    # First, migrate custom attachment types that don't match standard codes
     if openupgrade.table_exists(env.cr, "hr_salary_attachment_type"):
         openupgrade.logged_query(
             env.cr,
@@ -35,7 +39,6 @@ def _migrate_salary_attachment_types(env):
             )
             """,
         )
-    # Map old deduction_type_id to new other_input_type_id via code match
     openupgrade.logged_query(
         env.cr,
         f"""

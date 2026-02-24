@@ -147,7 +147,7 @@ The community OpenUpgrade `apriori.py` renames `spreadsheet_dashboard_purchase` 
 
 ### 2. New v18 auto-install bridge modules
 
-New bridge modules introduced in v18 (`l10n_be_codabox_bridge`, `l10n_cl_edi_boletas`, `l10n_mx_edi_stock_30`, etc.) may appear as "inconsistent module states" during upgrade. These are new auto-install modules in v18, not regressions from the migration scripts. Odoo resolves them automatically on next server boot.
+Orphaned v17 enterprise modules (`l10n_be_codabox_bridge`, `l10n_be_codabox_bridge_wizard`, `l10n_cl_edi_boletas`, `l10n_mx_edi_stock_30`) are now merged into their parent modules via the `base` pre-migration script.
 
 ### 3. `pdf417gen` optional library for `l10n_cl_edi`
 
@@ -205,7 +205,7 @@ DB_NAME=test_upgrade bash scripts/run_e2e_test.sh all
 - Phase 1: ~430 modules installed on v17
 - Phase 2: Seed data inserted for all migration paths
 - Phase 3: Upgrade completes without fatal errors
-- Phase 4: 54/54 verification checks PASS
+- Phase 4: 55/55 verification checks PASS
 
 ## License
 

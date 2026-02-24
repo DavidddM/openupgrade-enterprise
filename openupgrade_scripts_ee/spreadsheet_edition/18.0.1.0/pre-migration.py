@@ -24,16 +24,18 @@ def _convert_parent_revision_id_char_to_m2o(env):
     In 18.0: parent_revision_id is a Many2one to spreadsheet.revision
     (NULL for root revisions).
 
-    Strategy:
-    1. Preserve the old Char column as ou_legacy_parent_revision_id
-    2. Create a new INTEGER column parent_revision_id
-    3. Populate via self-join: match the UUID string to the record ID
+    Steps:
+    1. Preserve the old Char column as ou_legacy_parent_revision_id.
+    2. Create a new INTEGER column parent_revision_id.
+    3. Populate the FK by matching UUID strings (parent and child must share
+       the same res_model/res_id to be in the same revision chain).
+    4. Drop the old unique constraint (replaced by partial indexes created
+       by the model's init() method in 18.0).
     """
     if not openupgrade.column_exists(
         env.cr, "spreadsheet_revision", "parent_revision_id"
     ):
         return
-    # Step 1: Rename old Char column to preserve it
     openupgrade.rename_columns(
         env.cr,
         {
@@ -42,7 +44,6 @@ def _convert_parent_revision_id_char_to_m2o(env):
             ]
         },
     )
-    # Step 2: Create new INTEGER column for the Many2one FK
     openupgrade.logged_query(
         env.cr,
         """
@@ -50,9 +51,6 @@ def _convert_parent_revision_id_char_to_m2o(env):
         ADD COLUMN parent_revision_id INTEGER
         """,
     )
-    # Step 3: Populate the FK by matching UUID strings.
-    # Parent and child must share the same (res_model, res_id) to be in the
-    # same revision chain.
     openupgrade.logged_query(
         env.cr,
         """
@@ -66,8 +64,6 @@ def _convert_parent_revision_id_char_to_m2o(env):
           AND sr.ou_legacy_parent_revision_id != ''
         """,
     )
-    # Step 4: Drop the old unique constraint (replaced by partial indexes
-    # created by the model's init() method in 18.0)
     openupgrade.logged_query(
         env.cr,
         """

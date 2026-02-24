@@ -14,12 +14,15 @@ _noupdate_reset = [
 
 @openupgrade.migrate()
 def migrate(env, version):
-    # Reset noupdate on survey ir.rules that hr_appraisal_survey v17
-    # modified to exclude appraisal surveys. In v18, survey module
-    # handles its own rules differently, so let the standard update
-    # restore original domain_force values.
+    """Reset noupdate on survey ir.rules and delete renamed XML IDs.
+
+    In v17, hr_appraisal_survey modified survey ir.rules to exclude appraisal
+    surveys. In v18, the survey module handles its own rules differently, so
+    we reset noupdate to let the standard update restore original domain_force
+    values. Also delete renamed ir.rule XML IDs (simple_manager was renamed
+    to employee_manager).
+    """
     openupgrade.set_xml_ids_noupdate_value(env, "survey", _noupdate_reset, False)
-    # Delete renamed ir.rule XML IDs (simple_manager -> employee_manager)
     openupgrade.delete_records_safely_by_xml_id(
         env,
         [

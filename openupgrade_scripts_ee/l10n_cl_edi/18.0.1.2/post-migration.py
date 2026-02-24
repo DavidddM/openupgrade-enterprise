@@ -12,19 +12,17 @@ def _migrate_cl_certificates(env):
     In 18.0: l10n_cl_edi extends the unified certificate.certificate model
     with Chile-specific fields (user_id, last_token, token_time, etc.).
 
-    The old table is preserved by OpenUpgrade. We copy data to the new table.
+    The old table is preserved by OpenUpgrade. We copy data to the new
+    table, including the l10n_cl extension fields (user_id, last_token,
+    token_time, subject_serial_number). Content is a Binary field stored
+    as ir_attachment in 18.0, so we insert the record first, then create
+    an ir_attachment.
     """
     if not openupgrade.table_exists(env.cr, "l10n_cl_certificate"):
         return
-    # Check if there's any data to migrate
     env.cr.execute("SELECT COUNT(*) FROM l10n_cl_certificate")
     if not env.cr.fetchone()[0]:
         return
-    # Copy certificate data from old table to certificate_certificate.
-    # The l10n_cl extension adds user_id, last_token, token_time,
-    # subject_serial_number to certificate.certificate.
-    # Note: content is a Binary field stored as ir_attachment in 18.0,
-    # so we insert the record first, then create an ir_attachment.
     env.cr.execute(
         """
         SELECT

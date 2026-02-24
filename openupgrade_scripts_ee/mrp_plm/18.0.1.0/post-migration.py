@@ -9,13 +9,12 @@ def _migrate_mrp_plm_documents(env):
     The community mrp post-migration creates product_document records from
     mrp_document and stores the old ID in a legacy link column. We use that
     link to:
-    1. Copy origin_attachment_id from mrp_document to product_document
-    2. Update displayed_image_id on mrp_eco to point to product_document
+    1. Copy origin_attachment_id from mrp_document to product_document.
+    2. Update displayed_image_id on mrp_eco to point to product_document.
     """
     link_column = openupgrade.get_legacy_name("mrp_document_id")
     if not openupgrade.column_exists(env.cr, "product_document", link_column):
         return
-    # Copy origin_attachment_id to product_document
     if openupgrade.column_exists(env.cr, "mrp_document", "origin_attachment_id"):
         openupgrade.logged_query(
             env.cr,
@@ -27,7 +26,6 @@ def _migrate_mrp_plm_documents(env):
             AND md.origin_attachment_id IS NOT NULL
             """,
         )
-    # Update displayed_image_id on mrp_eco to point to new product_document
     if openupgrade.column_exists(env.cr, "mrp_eco", "displayed_image_id"):
         openupgrade.logged_query(
             env.cr,

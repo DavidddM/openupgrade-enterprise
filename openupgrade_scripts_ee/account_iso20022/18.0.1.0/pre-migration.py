@@ -32,12 +32,8 @@ _xmlid_renames = [
 
 def _handle_sct_generic_removal(env):
     if openupgrade.column_exists(env.cr, "account_batch_payment", "sct_generic"):
-        openupgrade.logged_query(
-            env.cr,
-            """
-            ALTER TABLE account_batch_payment
-            DROP COLUMN IF EXISTS sct_generic
-            """,
+        openupgrade.rename_columns(
+            env.cr, {"account_batch_payment": [("sct_generic", None)]}
         )
 
 

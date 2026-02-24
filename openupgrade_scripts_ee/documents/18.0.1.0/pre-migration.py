@@ -78,8 +78,14 @@ def _add_document_columns(env):
 
 
 def _fill_document_defaults(env):
-    """Populate required field values for existing document rows."""
-    # Generate unique document_token for each existing record
+    """Populate required field values for existing document rows.
+
+    - Generate unique document_token for each existing record.
+    - Set access control defaults (access_via_link, access_internal).
+    - Ensure owner_id is set (required in 18.0, was optional in 17.0).
+    - Populate company_id from the folder's company.
+    - Map removed selection value 'empty' to 'binary'.
+    """
     openupgrade.logged_query(
         env.cr,
         """
@@ -89,7 +95,6 @@ def _fill_document_defaults(env):
         WHERE document_token IS NULL
         """,
     )
-    # Set access control defaults
     openupgrade.logged_query(
         env.cr,
         """
@@ -99,7 +104,6 @@ def _fill_document_defaults(env):
         WHERE access_via_link IS NULL OR access_internal IS NULL
         """,
     )
-    # Ensure owner_id is set (required in 18.0, was optional in 17.0)
     openupgrade.logged_query(
         env.cr,
         """
@@ -108,7 +112,6 @@ def _fill_document_defaults(env):
         WHERE owner_id IS NULL
         """,
     )
-    # Populate company_id from the folder's company
     openupgrade.logged_query(
         env.cr,
         """
@@ -119,7 +122,6 @@ def _fill_document_defaults(env):
         AND dd.company_id IS NULL
         """,
     )
-    # Selection value 'empty' was removed in 18.0, map to 'binary'
     openupgrade.logged_query(
         env.cr,
         """
@@ -221,6 +223,10 @@ def _insert_folders_as_documents(env):
     In 18.0, documents.folder was merged into documents.document
     (type='folder'). A mapping column (_ou_from_folder_id) tracks
     which new document corresponds to which old folder.
+
+    Note: documents_folder.name is JSONB (translate=True) but
+    documents_document.name is plain varchar in 18.0, so the first
+    available translation is extracted.
     """
     openupgrade.logged_query(
         env.cr,
@@ -229,8 +235,6 @@ def _insert_folders_as_documents(env):
         ADD COLUMN IF NOT EXISTS _ou_from_folder_id integer
         """,
     )
-    # documents_folder.name is JSONB (translate=True) but
-    # documents_document.name is plain varchar in 18.0.
     openupgrade.logged_query(
         env.cr,
         """

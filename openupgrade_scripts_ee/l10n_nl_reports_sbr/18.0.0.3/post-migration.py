@@ -16,6 +16,11 @@ def _migrate_nl_sbr_certificates(env):
     - l10n_nl_reports_sbr_server_root_cert_id (→ certificate.certificate)
 
     OpenUpgrade preserves the old Binary columns.
+
+    For each company with certificate data:
+    1. Create a certificate.key from the private key binary.
+    2. Create a certificate.certificate from the PKI certificate.
+    3. Create a certificate.certificate from the root CA cert.
     """
     if not openupgrade.column_exists(
         env.cr, "res_company", "l10n_nl_reports_sbr_cert"
@@ -35,7 +40,6 @@ def _migrate_nl_sbr_certificates(env):
         (company_id, cert_binary, key_binary,
          cert_fname, key_fname, root_cert_binary) = row
         new_key_id = None
-        # Create certificate.key from private key
         if key_binary:
             env.cr.execute(
                 """
@@ -74,7 +78,6 @@ def _migrate_nl_sbr_certificates(env):
                     "company_id": company_id,
                 },
             )
-        # Create certificate.certificate from PKI certificate
         if cert_binary:
             env.cr.execute(
                 """
@@ -124,7 +127,6 @@ def _migrate_nl_sbr_certificates(env):
                 """,
                 (new_cert_id, company_id),
             )
-        # Create certificate.certificate from root CA cert
         if root_cert_binary:
             env.cr.execute(
                 """

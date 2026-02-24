@@ -12,14 +12,20 @@ def _migrate_mx_certificates(env):
     In 18.0: The unified certificate.certificate model is used. The private
     key is stored in a separate certificate.key record linked via
     private_key_id.
+
+    Steps:
+    1. Create certificate.key records from the old 'key' binary field,
+       storing the mapping via a temporary column (ou_new_key_id).
+    2. Create certificate.certificate records from old CER content.
+       MX certificates use DER/CER format (not PKCS12), so no
+       pkcs12_password. Content is a Binary field stored as ir_attachment
+       in 18.0, so we insert the record first, then create an ir_attachment.
     """
     if not openupgrade.table_exists(env.cr, "l10n_mx_edi_certificate"):
         return
     env.cr.execute("SELECT COUNT(*) FROM l10n_mx_edi_certificate")
     if not env.cr.fetchone()[0]:
         return
-    # Step 1: Create certificate.key records from the old 'key' binary field.
-    # Store mapping via a temporary column.
     openupgrade.logged_query(
         env.cr,
         """
@@ -86,10 +92,6 @@ def _migrate_mx_certificates(env):
             "UPDATE l10n_mx_edi_certificate SET ou_new_key_id = %s WHERE id = %s",
             (new_key_id, old_id),
         )
-    # Step 2: Create certificate.certificate records from old CER content.
-    # MX certificates use DER/CER format (not PKCS12), so no pkcs12_password.
-    # Note: content is a Binary field stored as ir_attachment in 18.0,
-    # so we insert the record first, then create an ir_attachment.
     env.cr.execute(
         """
         SELECT
@@ -164,12 +166,18 @@ def _migrate_mx_addenda(env):
     In 18.0: New model l10n_mx_edi.addenda with name and arch fields.
     Partners reference via res_partner.l10n_mx_edi_addenda_id (M2O to
     l10n_mx_edi.addenda).
+
+    Steps:
+    1. Check if any addenda views exist (l10n_mx_edi_addenda_flag=True).
+    2. Create l10n_mx_edi.addenda records from ir.ui.view records.
+       The name column might be JSONB or VARCHAR depending on upgrade state.
+    3. Update res_partner references from old view FK (l10n_mx_edi_addenda)
+       to new addenda FK (l10n_mx_edi_addenda_id).
     """
     if not openupgrade.column_exists(
         env.cr, "ir_ui_view", "l10n_mx_edi_addenda_flag"
     ):
         return
-    # Check if any addenda views exist
     env.cr.execute(
         """
         SELECT COUNT(*) FROM ir_ui_view
@@ -178,8 +186,6 @@ def _migrate_mx_addenda(env):
     )
     if not env.cr.fetchone()[0]:
         return
-    # Create l10n_mx_edi.addenda records from ir.ui.view records.
-    # The name column might be JSONB or VARCHAR depending on upgrade state.
     env.cr.execute(
         """
         SELECT data_type FROM information_schema.columns
@@ -191,7 +197,6 @@ def _migrate_mx_addenda(env):
         name_expr = "COALESCE(v.name->>'en_US', v.name->>0, 'Addenda')"
     else:
         name_expr = "COALESCE(v.name, 'Addenda')"
-    # Insert addenda records and build mapping from old view ID to new ID
     env.cr.execute(
         f"""
         SELECT v.id, {name_expr}, v.arch_db
@@ -216,8 +221,6 @@ def _migrate_mx_addenda(env):
             (name, arch_text),
         )
         view_to_addenda[view_id] = env.cr.fetchone()[0]
-    # Update res_partner references from old view FK to new addenda FK.
-    # OpenUpgrade preserves the old column l10n_mx_edi_addenda (FK to ir_ui_view).
     if not openupgrade.column_exists(
         env.cr, "res_partner", "l10n_mx_edi_addenda"
     ):

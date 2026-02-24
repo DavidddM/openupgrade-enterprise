@@ -39,18 +39,19 @@ def _migrate_onss_certificates(env):
 
     In v17, ONSS certificates were Binary fields stored as ir_attachment.
     In v18, they are certificate.certificate records linked via M2O.
+
+    Checks that the certificate model is available, finds existing ONSS
+    certificate attachments via ORM, and creates certificate.certificate
+    records with optional passphrase from the legacy column.
     """
-    # Check if certificate model exists in the registry
     if "certificate.certificate" not in env:
         _logger.info(
             "certificate.certificate model not available, "
             "skipping ONSS certificate migration"
         )
         return
-    # Check if the target column exists
     if not openupgrade.column_exists(env.cr, "res_company", "onss_certificate_id"):
         return
-    # Use ORM to find certificate attachments
     attachments = env["ir.attachment"].search(
         [
             ("res_model", "=", "res.company"),
