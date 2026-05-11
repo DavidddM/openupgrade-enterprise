@@ -4,6 +4,8 @@
 -- Each test returns PASS or FAIL. Results are collected in a temp table.
 -- Tests are guarded: if the table/column doesn't exist (module not installed),
 -- the test returns PASS (the migration script's guard clause would have skipped it).
+-- Run by scripts/run_e2e_test.sh as VERIFY_SQL; the output contract is
+-- described in the SUMMARY section at the end.
 -- =============================================================================
 
 DROP TABLE IF EXISTS _ou_test_results;
@@ -936,21 +938,32 @@ END $$;
 -- =============================================================================
 -- SUMMARY
 -- =============================================================================
-SELECT '======================================' AS separator;
-SELECT 'OPENUPGRADE ENTERPRISE E2E RESULTS' AS header;
-SELECT '======================================' AS separator;
+-- One row per test, "<n> PASS|FAIL T<test_id> <name> | <detail>", then
+-- "SUMMARY passed=<n> | failed=<n> | skipped=0"; the last block raises when a
+-- test failed, so psql with ON_ERROR_STOP exits non-zero.
+-- =============================================================================
+\pset tuples_only on
+\pset format unaligned
+\pset pager off
 
-SELECT
-    COUNT(*) FILTER (WHERE result = 'PASS') AS passed,
-    COUNT(*) FILTER (WHERE result = 'FAIL') AS failed,
-    COUNT(*) AS total
+SELECT format('%s %s T%s %s | %s',
+              lpad((row_number() OVER (ORDER BY test_id, test_name))::text, 3),
+              result, test_id, test_name, COALESCE(detail, ''))
+FROM _ou_test_results
+ORDER BY test_id, test_name;
+
+SELECT format('SUMMARY passed=%s | failed=%s | skipped=0',
+              COUNT(*) FILTER (WHERE result = 'PASS'),
+              COUNT(*) FILTER (WHERE result = 'FAIL'))
 FROM _ou_test_results;
 
-SELECT test_id, test_name, result, detail
-FROM _ou_test_results
-WHERE result = 'FAIL'
-ORDER BY test_id;
-
-SELECT test_id, test_name, result, COALESCE(detail, '') AS detail
-FROM _ou_test_results
-ORDER BY test_id;
+DO $$
+DECLARE
+    v_failed INTEGER;
+    v_total INTEGER;
+BEGIN
+    SELECT COUNT(*) FILTER (WHERE result = 'FAIL'), COUNT(*) INTO v_failed, v_total FROM _ou_test_results;
+    IF v_failed > 0 THEN
+        RAISE EXCEPTION 'verify_migration: % of % tests failed', v_failed, v_total;
+    END IF;
+END $$;
