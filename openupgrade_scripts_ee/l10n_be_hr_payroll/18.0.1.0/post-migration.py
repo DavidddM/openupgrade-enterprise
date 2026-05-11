@@ -1,10 +1,9 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
-import logging
-
 from openupgradelib import openupgrade
+from psycopg2 import sql
 
-_logger = logging.getLogger(__name__)
+from odoo.upgrade.lib import certificate
 
 
 def _move_fiscal_voluntary_rate(env):
@@ -35,65 +34,35 @@ def _move_fiscal_voluntary_rate(env):
 
 
 def _migrate_onss_certificates(env):
-    """Create certificate.certificate records from legacy ONSS Binary attachments.
+    """Migrate the ONSS certificate and key of each company.
 
-    In v17, ONSS certificates were Binary fields stored as ir_attachment.
-    In v18, they are certificate.certificate records linked via M2O.
-
-    Checks that the certificate model is available, finds existing ONSS
-    certificate attachments via ORM, and creates certificate.certificate
-    records with optional passphrase from the legacy column.
+    17.0 keeps the PEM certificate file in ``onss_pem_certificate`` and the
+    key file in ``onss_key`` (attachments, filestore or database); 17.0 signs
+    with the private key found in the certificate file, decrypted with
+    ``onss_pem_passphrase`` (legacy column since pre-migration). The key file
+    is used when it fits the certificate, the key embedded in the certificate
+    file otherwise, so 18.0 finds a usable ``private_key_id``.
     """
-    if "certificate.certificate" not in env:
-        _logger.info(
-            "certificate.certificate model not available, "
-            "skipping ONSS certificate migration"
+    passphrase = openupgrade.get_legacy_name("onss_pem_passphrase")
+    if not openupgrade.column_exists(env.cr, "res_company", passphrase):
+        passphrase = None
+    query = sql.SQL(
+        """
+        SELECT id, id AS company_id, 'ONSS certificate ' || name AS name,
+            'ONSS private key ' || name AS key_name, {} AS key_password
+        FROM res_company
+        WHERE id IN (
+            SELECT res_id FROM ir_attachment
+            WHERE res_model = 'res.company'
+                AND res_field IN ('onss_pem_certificate', 'onss_key')
         )
-        return
-    if not openupgrade.column_exists(env.cr, "res_company", "onss_certificate_id"):
-        return
-    attachments = env["ir.attachment"].search(
-        [
-            ("res_model", "=", "res.company"),
-            ("res_field", "=", "onss_pem_certificate"),
-        ]
+        ORDER BY id
+        """
+    ).format(sql.Identifier(passphrase) if passphrase else sql.SQL("NULL"))
+    certificate.migrate(
+        env, "res.company", query, "onss_pem_certificate", key="onss_key"
     )
-    if not attachments:
-        _logger.info("No ONSS certificate attachments found to migrate")
-        return
-    legacy_pass = openupgrade.get_legacy_name("onss_pem_passphrase")
-    Certificate = env["certificate.certificate"]
-    for att in attachments:
-        company_id = att.res_id
-        if not att.datas:
-            continue
-        vals = {
-            "name": att.name or "ONSS Certificate (migrated)",
-            "content": att.datas,
-            "company_id": company_id,
-        }
-        # Get passphrase if column exists
-        if openupgrade.column_exists(env.cr, "res_company", legacy_pass):
-            env.cr.execute(
-                f"SELECT {legacy_pass} FROM res_company WHERE id = %s",
-                (company_id,),
-            )
-            row = env.cr.fetchone()
-            if row and row[0]:
-                vals["pkcs12_password"] = row[0]
-        try:
-            cert = Certificate.create(vals)
-            env.cr.execute(
-                "UPDATE res_company SET onss_certificate_id = %s WHERE id = %s",
-                (cert.id, company_id),
-            )
-        except Exception:
-            _logger.warning(
-                "Could not create certificate for company %s, "
-                "manual ONSS certificate setup required.",
-                company_id,
-                exc_info=True,
-            )
+    certificate.link_companies(env, "onss_certificate_id", "onss_pem_certificate")
 
 
 @openupgrade.migrate()

@@ -2,123 +2,39 @@
 
 from openupgradelib import openupgrade
 
+from odoo.upgrade.lib import certificate
+
 
 def _migrate_ar_certificates(env):
-    """Migrate AR AFIP certificate/key from Binary fields to certificate records.
+    """Migrate the AFIP certificate and key of each company.
 
-    In 17.0: res.company had Binary fields:
-    - l10n_ar_afip_ws_key (PEM private key)
-    - l10n_ar_afip_ws_crt (PEM certificate)
-
-    In 18.0: res.company has Many2one fields:
-    - l10n_ar_afip_ws_key_id (→ certificate.key)
-    - l10n_ar_afip_ws_crt_id (→ certificate.certificate)
-
-    OpenUpgrade preserves the old Binary columns. We create certificate/key
-    records and set the new M2O fields.
-
-    For each company with certificate data:
-    1. Create a certificate.key record from the private key binary.
-    2. Create a certificate.certificate record from the certificate binary.
-    3. Set the M2O fields on res.company.
+    17.0 keeps them in the Binary fields ``l10n_ar_afip_ws_crt`` (PEM
+    certificate) and ``l10n_ar_afip_ws_key`` (unencrypted PEM key) of
+    res.company, which are attachments (filestore or database), not columns.
+    A company may hold only the key (certificate request not answered yet), so
+    the key gets its own link; the certificate gets the key as private key
+    when they match.
     """
-    if not openupgrade.column_exists(
-        env.cr, "res_company", "l10n_ar_afip_ws_crt"
-    ):
-        return
-    env.cr.execute(
+    certificate.migrate(
+        env,
+        "res.company",
         """
-        SELECT id, l10n_ar_afip_ws_key, l10n_ar_afip_ws_crt,
-               l10n_ar_afip_ws_crt_fname
+        SELECT id, id AS company_id,
+            NULLIF(l10n_ar_afip_ws_crt_fname, '') AS name,
+            'AFIP private key ' || name AS key_name
         FROM res_company
-        WHERE l10n_ar_afip_ws_crt IS NOT NULL
-        """
+        WHERE id IN (
+            SELECT res_id FROM ir_attachment
+            WHERE res_model = 'res.company'
+                AND res_field IN ('l10n_ar_afip_ws_crt', 'l10n_ar_afip_ws_key')
+        )
+        ORDER BY id
+        """,
+        "l10n_ar_afip_ws_crt",
+        key="l10n_ar_afip_ws_key",
     )
-    for company_id, key_binary, crt_binary, crt_fname in env.cr.fetchall():
-        new_key_id = None
-        if key_binary:
-            env.cr.execute(
-                """
-                INSERT INTO certificate_key (
-                    name, company_id, active,
-                    create_uid, create_date, write_uid, write_date
-                ) VALUES (
-                    'AR AFIP Private Key', %(company_id)s, true,
-                    1, NOW(), 1, NOW()
-                )
-                RETURNING id
-                """,
-                {"company_id": company_id},
-            )
-            new_key_id = env.cr.fetchone()[0]
-            env.cr.execute(
-                """
-                INSERT INTO ir_attachment (
-                    name, res_model, res_id, res_field, type, db_datas,
-                    checksum, company_id,
-                    create_uid, create_date, write_uid, write_date
-                ) VALUES (
-                    'content', 'certificate.key', %(res_id)s, 'content',
-                    'binary', %(content)s,
-                    md5(%(content)s), %(company_id)s,
-                    1, NOW(), 1, NOW()
-                )
-                """,
-                {
-                    "res_id": new_key_id,
-                    "content": key_binary,
-                    "company_id": company_id,
-                },
-            )
-            env.cr.execute(
-                "UPDATE res_company SET l10n_ar_afip_ws_key_id = %s WHERE id = %s",
-                (new_key_id, company_id),
-            )
-        if crt_binary:
-            env.cr.execute(
-                """
-                INSERT INTO certificate_certificate (
-                    name, private_key_id, company_id,
-                    scope, active,
-                    create_uid, create_date, write_uid, write_date
-                ) VALUES (
-                    COALESCE(%(name)s, 'AR AFIP Certificate'),
-                    %(key_id)s, %(company_id)s,
-                    'general', true,
-                    1, NOW(), 1, NOW()
-                )
-                RETURNING id
-                """,
-                {
-                    "name": crt_fname,
-                    "key_id": new_key_id,
-                    "company_id": company_id,
-                },
-            )
-            new_crt_id = env.cr.fetchone()[0]
-            env.cr.execute(
-                """
-                INSERT INTO ir_attachment (
-                    name, res_model, res_id, res_field, type, db_datas,
-                    checksum, company_id,
-                    create_uid, create_date, write_uid, write_date
-                ) VALUES (
-                    'content', 'certificate.certificate', %(res_id)s,
-                    'content', 'binary', %(content)s,
-                    md5(%(content)s), %(company_id)s,
-                    1, NOW(), 1, NOW()
-                )
-                """,
-                {
-                    "res_id": new_crt_id,
-                    "content": crt_binary,
-                    "company_id": company_id,
-                },
-            )
-            env.cr.execute(
-                "UPDATE res_company SET l10n_ar_afip_ws_crt_id = %s WHERE id = %s",
-                (new_crt_id, company_id),
-            )
+    certificate.link_companies(env, "l10n_ar_afip_ws_crt_id", "l10n_ar_afip_ws_crt")
+    certificate.link_companies(env, "l10n_ar_afip_ws_key_id", "l10n_ar_afip_ws_key")
 
 
 @openupgrade.migrate()

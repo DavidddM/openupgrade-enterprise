@@ -8,7 +8,7 @@
 # records of the upgrade log, time and runner log. Every module that has a
 # script under openupgrade_scripts_ee is installed by at least one batch;
 # l10n_mx_edi, l10n_ec_edi, l10n_pe_edi and mrp_plm, whose certificate and
-# document many2one fields change comodel, only by the crit batches.
+# document many2one fields change comodel, only by the crit and cert batches.
 #
 # Batches (MODULES use 17.0 module names, account_sepa is the 17.0 name of
 # account_iso20022):
@@ -25,6 +25,11 @@
 #   pay       AU, BE, CH and KE payroll
 #   crit      l10n_mx_edi, l10n_ec_edi, l10n_pe_edi, mrp_plm together
 #   crit_mx, crit_ec, crit_pe, crit_plm   the same modules one per database
+#   cert_ar, cert_cl, cert_nl, cert_be    l10n_ar_edi, l10n_cl_edi,
+#             l10n_nl_reports_sbr, l10n_be_hr_payroll one per database, for
+#             a certificate seed of their own (SEED_PY)
+#   cert      the seven certificate localizations (AR, CL, NL, BE, MX, EC, PE)
+#             together, so their certificates migrate in one database
 #   Each list can be overridden with BATCH_<NAME> (upper case), e.g. BATCH_HR.
 #
 # Usage:
@@ -73,6 +78,11 @@ BATCH_CRIT_EC="${BATCH_CRIT_EC:-l10n_ec_edi}"
 BATCH_CRIT_PE="${BATCH_CRIT_PE:-l10n_pe_edi}"
 BATCH_CRIT_PLM="${BATCH_CRIT_PLM:-mrp_plm}"
 BATCH_CRIT="${BATCH_CRIT:-${BATCH_CRIT_MX},${BATCH_CRIT_EC},${BATCH_CRIT_PE},${BATCH_CRIT_PLM}}"
+BATCH_CERT_AR="${BATCH_CERT_AR:-l10n_ar_edi}"
+BATCH_CERT_CL="${BATCH_CERT_CL:-l10n_cl_edi}"
+BATCH_CERT_NL="${BATCH_CERT_NL:-l10n_nl_reports_sbr}"
+BATCH_CERT_BE="${BATCH_CERT_BE:-l10n_be_hr_payroll}"
+BATCH_CERT="${BATCH_CERT:-${BATCH_CERT_AR},${BATCH_CERT_CL},${BATCH_CERT_NL},${BATCH_CERT_BE},${BATCH_CRIT_MX},${BATCH_CRIT_EC},${BATCH_CRIT_PE}}"
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
