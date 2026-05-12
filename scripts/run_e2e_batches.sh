@@ -8,7 +8,8 @@
 # records of the upgrade log, time and runner log. Every module that has a
 # script under openupgrade_scripts_ee is installed by at least one batch;
 # l10n_mx_edi, l10n_ec_edi, l10n_pe_edi and mrp_plm, whose certificate and
-# document many2one fields change comodel, only by the crit and cert batches.
+# document many2one fields change comodel, only by the crit and cert batches
+# (and l10n_ec_edi by cdep).
 #
 # Batches (MODULES use 17.0 module names, account_sepa is the 17.0 name of
 # account_iso20022):
@@ -30,6 +31,14 @@
 #             a certificate seed of their own (SEED_PY)
 #   cert      the seven certificate localizations (AR, CL, NL, BE, MX, EC, PE)
 #             together, so their certificates migrate in one database
+#   cdep_acc  company-dependent fields of accounting: follow-up, payroll
+#             accounts and journals, DATEV (company numbers and the partner
+#             identifiers that become company-dependent)
+#   cdep_svc  company-dependent fields of services: rental prices and
+#             preparation time, field service worksheet, helpdesk SLA of a
+#             service (moved from the product to the policy)
+#   cdep      cdep_acc, cdep_svc and l10n_ec_edi (EC withholding taxes)
+#             together; crit_ec covers the EC fields on their own
 #   Each list can be overridden with BATCH_<NAME> (upper case), e.g. BATCH_HR.
 #
 # Usage:
@@ -83,6 +92,9 @@ BATCH_CERT_CL="${BATCH_CERT_CL:-l10n_cl_edi}"
 BATCH_CERT_NL="${BATCH_CERT_NL:-l10n_nl_reports_sbr}"
 BATCH_CERT_BE="${BATCH_CERT_BE:-l10n_be_hr_payroll}"
 BATCH_CERT="${BATCH_CERT:-${BATCH_CERT_AR},${BATCH_CERT_CL},${BATCH_CERT_NL},${BATCH_CERT_BE},${BATCH_CRIT_MX},${BATCH_CRIT_EC},${BATCH_CRIT_PE}}"
+BATCH_CDEP_ACC="${BATCH_CDEP_ACC:-account_followup,hr_payroll_account,l10n_de_reports}"
+BATCH_CDEP_SVC="${BATCH_CDEP_SVC:-sale_stock_renting,industry_fsm_sale_report,helpdesk_sale_timesheet}"
+BATCH_CDEP="${BATCH_CDEP:-${BATCH_CDEP_ACC},${BATCH_CDEP_SVC},${BATCH_CRIT_EC}}"
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 

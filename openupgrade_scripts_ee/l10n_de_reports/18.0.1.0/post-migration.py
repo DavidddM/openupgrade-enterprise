@@ -1,22 +1,10 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
-from openupgradelib import openupgrade, openupgrade_180
-
-
-def _convert_datev_identifier_fields(env):
-    openupgrade_180.convert_company_dependent(
-        env,
-        "res.partner",
-        "l10n_de_datev_identifier",
-    )
-    openupgrade_180.convert_company_dependent(
-        env,
-        "res.partner",
-        "l10n_de_datev_identifier_customer",
-    )
+from openupgradelib import openupgrade
 
 
 def _setup_deferred_accounts(env):
+    """Give the SKR03/SKR04 companies their deferred accounts where unset."""
     for company in env["res.company"].search([]):
         if company.chart_template in ("de_skr03", "de_skr04"):
             if company.chart_template == "de_skr03":
@@ -41,5 +29,12 @@ def _setup_deferred_accounts(env):
 
 @openupgrade.migrate()
 def migrate(env, version):
-    _convert_datev_identifier_fields(env)
+    """Set the DATEV deferred accounts of the SKR03/SKR04 companies.
+
+    The DATEV numbers of companies and partners become company-dependent jsonb
+    values in the shared step ``odoo.upgrade.lib.company_dependent``, run by
+    the base end-migration of this repository: the company numbers from
+    ir_property, the partner identifiers from the legacy columns the
+    pre-migration keeps.
+    """
     _setup_deferred_accounts(env)
