@@ -3,6 +3,7 @@
 import logging
 
 from openupgradelib import openupgrade
+from psycopg2 import sql
 
 _logger = logging.getLogger(__name__)
 
@@ -125,6 +126,40 @@ def _create_missing_l10n_ke_tax_tags(env):
                 """,
                 {"name": tag_name, "country_id": country_id},
             )
+
+
+def _split_deferred_settings(env):
+    """Give deferred revenues the 17.0 deferred journal and computation method.
+
+    17.0 has one deferred journal and one method for expenses and revenues;
+    18.0 splits them and the renames above keep the 17.0 values as the
+    expense ones. The revenue columns are made and filled before the module
+    load, which would otherwise create them and write the default 'month'
+    into every company (the method is required), leaving nothing to copy.
+    A column that already exists is not touched again.
+    """
+    for column, source, column_type in (
+        ("deferred_revenue_journal_id", "deferred_expense_journal_id", "integer"),
+        (
+            "deferred_revenue_amount_computation_method",
+            "deferred_expense_amount_computation_method",
+            "varchar",
+        ),
+    ):
+        if openupgrade.column_exists(env.cr, "res_company", column):
+            continue
+        openupgrade.logged_query(
+            env.cr,
+            sql.SQL("ALTER TABLE res_company ADD COLUMN {} {}").format(
+                sql.Identifier(column), sql.SQL(column_type)
+            ),
+        )
+        openupgrade.logged_query(
+            env.cr,
+            sql.SQL("UPDATE res_company SET {} = {}").format(
+                sql.Identifier(column), sql.Identifier(source)
+            ),
+        )
 
 
 def _ensure_accountant_module(env):
@@ -266,6 +301,7 @@ def migrate(env, version):
     if not version:
         return
     openupgrade.rename_fields(env, _field_renames)
+    _split_deferred_settings(env)
     openupgrade.rename_xmlids(env.cr, _xmlid_renames)
     _create_missing_l10n_ke_tax_tags(env)
     _ensure_accountant_module(env)

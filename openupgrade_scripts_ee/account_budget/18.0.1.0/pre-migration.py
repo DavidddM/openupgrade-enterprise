@@ -20,6 +20,23 @@ _column_renames = {
 }
 
 
+def _keep_analytic_account(env):
+    """Keep the 17.0 analytic account of budget lines in a legacy column.
+
+    18.0 budget lines have no ``analytic_account_id``: they store one account
+    per root analytic plan, through ``analytic.plan.fields.mixin``. The
+    end-migration moves each account into the column of its plan, once the
+    analytic module has created the plan columns of the 18.0 model.
+    """
+    legacy = openupgrade.get_legacy_name("analytic_account_id")
+    if openupgrade.column_exists(
+        env.cr, "budget_line", "analytic_account_id"
+    ) and not openupgrade.column_exists(env.cr, "budget_line", legacy):
+        openupgrade.rename_columns(
+            env.cr, {"budget_line": [("analytic_account_id", legacy)]}
+        )
+
+
 def _map_budget_states(env):
     """Map old budget state values to 18.0 equivalents.
 
@@ -79,6 +96,7 @@ def migrate(env, version):
     openupgrade.rename_models(env.cr, _model_renames)
     openupgrade.rename_tables(env.cr, _table_renames)
     openupgrade.rename_columns(env.cr, _column_renames)
+    _keep_analytic_account(env)
     _map_budget_states(env)
     _add_budget_line_defaults(env)
     _fill_budget_analytic_required_dates(env)
