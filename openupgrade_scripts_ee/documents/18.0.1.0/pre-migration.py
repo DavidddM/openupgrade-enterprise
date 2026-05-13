@@ -1,6 +1,9 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
 from openupgradelib import openupgrade
+from psycopg2 import sql
+
+from odoo.upgrade.lib import relation
 
 _field_renames = [
     ("res.company", "res_company", "account_folder", "account_folder_id"),
@@ -81,7 +84,8 @@ def _fill_document_defaults(env):
     """Populate required field values for existing document rows.
 
     - Generate unique document_token for each existing record.
-    - Set access control defaults (access_via_link, access_internal).
+    - Set access control defaults (access_via_link, access_internal); the
+      internal access is then derived from the 17.0 workspace groups.
     - Ensure owner_id is set (required in 18.0, was optional in 17.0).
     - Populate company_id from the folder's company.
     - Map removed selection value 'empty' to 'binary'.
@@ -227,6 +231,10 @@ def _insert_folders_as_documents(env):
     Note: documents_folder.name is JSONB (translate=True) but
     documents_document.name is plain varchar in 18.0, so the first
     available translation is extracted.
+
+    A 17.0 workspace belongs to nobody; the folder is owned by OdooBot, as
+    18.0 company folders are: a folder owned by a user would give that user
+    edit rights and sit in the user's own drive instead of the company root.
     """
     openupgrade.logged_query(
         env.cr,
@@ -235,6 +243,7 @@ def _insert_folders_as_documents(env):
         ADD COLUMN IF NOT EXISTS _ou_from_folder_id integer
         """,
     )
+    owner = env.ref("base.user_root").id
     openupgrade.logged_query(
         env.cr,
         """
@@ -253,7 +262,7 @@ def _insert_folders_as_documents(env):
             df.active,
             'folder',
             df.company_id,
-            COALESCE(df.create_uid, 1),
+            %(owner)s,
             md5(random()::text || df.id::text || clock_timestamp()::text),
             'none',
             'none',
@@ -264,6 +273,7 @@ def _insert_folders_as_documents(env):
             df.id
         FROM documents_folder df
         """,
+        {"owner": owner},
     )
     openupgrade.logged_query(
         env.cr,
@@ -303,6 +313,58 @@ def _remap_document_folder_ids(env):
         AND dd._ou_from_folder_id IS NULL
         AND dd.folder_id IS NOT NULL
         """,
+    )
+
+
+def _internal_access_from_groups(env):
+    """Give folders and documents the internal access of their 17.0 workspace.
+
+    17.0 opens a workspace without write and read groups to every internal
+    user (read, create, edit) and restricts any other workspace to its groups
+    (record rules on ``group_ids`` and ``read_group_ids``). The folder made
+    from the workspace and every document in it get ``access_internal`` 'edit'
+    in the first case and 'none' in the second; the post-migration lists the
+    group members on the restricted ones. 17.0 ``group_ids`` has no relation
+    name, so its rows are in the default table
+    ``documents_folder_res_groups_rel``; ``read_group_ids`` names its table.
+    """
+    openupgrade.logged_query(
+        env.cr,
+        sql.SQL(
+            """
+            WITH workspace AS (
+                SELECT folder.id,
+                    EXISTS (
+                        SELECT 1 FROM {write_groups} w
+                        WHERE w.documents_folder_id = folder.id
+                    ) OR EXISTS (
+                        SELECT 1 FROM documents_folder_read_groups r
+                        WHERE r.documents_folder_id = folder.id
+                    ) AS restricted
+                FROM documents_folder folder
+            ), target AS (
+                SELECT fd.id, workspace.restricted
+                FROM documents_document fd
+                JOIN workspace ON workspace.id = fd._ou_from_folder_id
+                UNION ALL
+                SELECT doc.id, workspace.restricted
+                FROM documents_document doc
+                JOIN documents_document fd ON fd.id = doc.folder_id
+                JOIN workspace ON workspace.id = fd._ou_from_folder_id
+                WHERE doc._ou_from_folder_id IS NULL
+            )
+            UPDATE documents_document doc
+            SET access_internal = CASE
+                WHEN target.restricted THEN 'none' ELSE 'edit'
+            END
+            FROM target
+            WHERE doc.id = target.id
+            """
+        ).format(
+            write_groups=sql.Identifier(
+                relation.default_name("documents_folder", "res_groups")
+            )
+        ),
     )
 
 
@@ -373,6 +435,7 @@ def migrate(env, version):
     _insert_folders_as_documents(env)
     _remap_folder_hierarchy(env)
     _remap_document_folder_ids(env)
+    _internal_access_from_groups(env)
     _remap_child_module_fks(env)
     _update_folder_xmlids(env)
     openupgrade.rename_xmlids(env.cr, _xmlid_renames)
