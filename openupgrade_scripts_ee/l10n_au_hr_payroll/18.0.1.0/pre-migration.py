@@ -52,54 +52,8 @@ def _scale_casual_loading(env):
         )
 
 
-def _clean_removed_payroll_structures(env):
-    """Reparent salary rules from structures removed in v18.
-
-    In v17->v18, 9 AU payroll structures were consolidated into one
-    (hr_payroll_structure_au_regular). We reparent all rules (both custom
-    and xmlid-managed) to the surviving structure so the old structures
-    can be cleanly removed by Odoo's XML sync.
-
-    We cannot simply delete rules because hr_payslip_line.salary_rule_id
-    is required with ondelete='restrict' — deleting rules referenced by
-    historical payslip lines would cause FK constraint violations and
-    deleting custom user rules would cause data loss.
-    """
-    _removed_structure_xmlids = [
-        "hr_payroll_structure_au_no_tfn",
-        "hr_payroll_structure_au_whm",
-        "hr_payroll_structure_au_senior",
-        "hr_payroll_structure_au_lumpsum",
-        "hr_payroll_structure_au_actor",
-        "hr_payroll_structure_au_actor_promotional",
-        "hr_payroll_structure_au_horticulture",
-        "hr_payroll_structure_au_return_to_work",
-        "hr_payroll_structure_au_termination",
-    ]
-    openupgrade.logged_query(
-        env.cr,
-        """
-        UPDATE hr_salary_rule
-        SET struct_id = (
-            SELECT res_id FROM ir_model_data
-            WHERE module = 'l10n_au_hr_payroll'
-              AND name = 'hr_payroll_structure_au_regular'
-              AND model = 'hr.payroll.structure'
-        )
-        WHERE struct_id IN (
-            SELECT res_id FROM ir_model_data
-            WHERE module = 'l10n_au_hr_payroll'
-              AND name IN %s
-              AND model = 'hr.payroll.structure'
-        )
-        """,
-        (tuple(_removed_structure_xmlids),),
-    )
-
-
 @openupgrade.migrate()
 def migrate(env, version):
-    _clean_removed_payroll_structures(env)
     openupgrade.rename_columns(env.cr, _column_renames)
     _rename_optional_columns(env)
     openupgrade.rename_fields(env, _field_renames)

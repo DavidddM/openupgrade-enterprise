@@ -61,7 +61,7 @@ def _move_employment_basis_code(env):
 
 
 def _move_country_code(env):
-    """Move l10n_au_country_code -> l10n_au_work_country_id from contract to employee."""
+    """Move l10n_au_country_code -> l10n_au_work_country_id to the employee."""
     legacy_col = _get_contract_legacy("l10n_au_country_code")
     openupgrade.logged_query(
         env.cr,
@@ -158,6 +158,159 @@ def _move_tax_treatment_category(env):
     )
 
 
+_DROPPED_STRUCTURES = (
+    "hr_payroll_structure_au_no_tfn",
+    "hr_payroll_structure_au_whm",
+    "hr_payroll_structure_au_senior",
+    "hr_payroll_structure_au_lumpsum",
+    "hr_payroll_structure_au_actor",
+    "hr_payroll_structure_au_actor_promotional",
+    "hr_payroll_structure_au_horticulture",
+    "hr_payroll_structure_au_return_to_work",
+    "hr_payroll_structure_au_termination",
+)
+
+_DROPPED_TYPES = (
+    "structure_type_schedule_2",
+    "structure_type_schedule_3",
+    "structure_type_schedule_4",
+    "structure_type_schedule_5",
+    "structure_type_schedule_9",
+    "structure_type_schedule_11_and_7",
+    "structure_type_schedule_15",
+    "structure_type_no_tfn",
+)
+
+_DROPPED_REGULAR_RULES = ("l10n_au_allowance_withholding_structure_1",)
+
+_DROPPED_CATEGORIES = (
+    "rule_category_etp_gross",
+    "rule_category_etp_withhold",
+    "rule_category_leave_base",
+    "rule_category_leave_withhold",
+)
+
+
+def _module_ids(env, model, names):
+    """Ids of the records behind xmlids of this module."""
+    env.cr.execute(
+        """
+        SELECT res_id FROM ir_model_data
+        WHERE module = 'l10n_au_hr_payroll' AND model = %s AND name IN %s
+        """,
+        (model, tuple(names)),
+    )
+    return tuple(res_id for (res_id,) in env.cr.fetchall())
+
+
+def _keep_dropped_structures_apart(env):
+    """Retire the nine 17.0 structures 18.0 drops, without merging their rules.
+
+    18.0 pays every Australian employee through one structure and one
+    structure type (the 17.0 schedules are employee fields now, moved above).
+    The dropped structures each carry a full rule set (WITHHOLD, SUPER, ...,
+    and the BASIC/GROSS/NET copies every structure gets on creation, which
+    have no xmlid), so moving their rules into the regular structure would
+    run the same codes several times on every new payslip. Instead:
+
+    - contracts of a dropped structure type move to the 18.0 type, which pays
+      through the regular structure;
+    - the dropped structures move to that type too and are archived with all
+      their rules, custom ones included, and their xmlids stop being updated,
+      so historical payslips keep their structure and every line its rule;
+      the dropped types, no longer used, are removed by the update;
+    - a 17.0 regular rule 18.0 drops that payslip lines use is archived and
+      kept the same way (an unused one is removed by the update);
+    - a 17.0 rule category 18.0 drops (the termination ones) stays while a
+      kept rule uses it, its xmlid no longer updated.
+
+    Runs after the moves of the employee fields, which read the 17.0 type of
+    the contracts. A second run changes nothing.
+    """
+    cr = env.cr
+    target_type = env.ref("l10n_au_hr_payroll.structure_type_schedule_1").id
+    types = _module_ids(env, "hr.payroll.structure.type", _DROPPED_TYPES)
+    if types:
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE hr_contract SET structure_type_id = %s
+            WHERE structure_type_id IN %s
+            """,
+            (target_type, types),
+        )
+    structures = _module_ids(env, "hr.payroll.structure", _DROPPED_STRUCTURES)
+    if structures:
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE hr_payroll_structure SET type_id = %s, active = false
+            WHERE id IN %s
+            """,
+            (target_type, structures),
+        )
+        openupgrade.logged_query(
+            cr,
+            "UPDATE hr_salary_rule SET active = false WHERE struct_id IN %s",
+            (structures,),
+        )
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE ir_model_data SET noupdate = true
+            WHERE module = 'l10n_au_hr_payroll' AND NOT coalesce(noupdate, false)
+            AND (
+                (model = 'hr.payroll.structure' AND res_id IN %(structures)s)
+                OR (model = 'hr.salary.rule' AND res_id IN (
+                    SELECT id FROM hr_salary_rule WHERE struct_id IN %(structures)s
+                ))
+            )
+            """,
+            {"structures": structures},
+        )
+    rules = _module_ids(env, "hr.salary.rule", _DROPPED_REGULAR_RULES)
+    if rules:
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE hr_salary_rule rule SET active = false
+            WHERE rule.id IN %s AND EXISTS (
+                SELECT 1 FROM hr_payslip_line line WHERE line.salary_rule_id = rule.id
+            )
+            """,
+            (rules,),
+        )
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE ir_model_data data SET noupdate = true
+            FROM hr_salary_rule rule
+            WHERE data.module = 'l10n_au_hr_payroll' AND data.model = 'hr.salary.rule'
+            AND data.res_id = rule.id AND rule.id IN %s AND NOT rule.active
+            AND NOT coalesce(data.noupdate, false)
+            """,
+            (rules,),
+        )
+    categories = _module_ids(env, "hr.salary.rule.category", _DROPPED_CATEGORIES)
+    if categories:
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE ir_model_data data SET noupdate = true
+            WHERE data.module = 'l10n_au_hr_payroll'
+            AND data.model = 'hr.salary.rule.category'
+            AND data.res_id IN %s AND NOT coalesce(data.noupdate, false)
+            AND EXISTS (
+                SELECT 1 FROM hr_salary_rule rule WHERE rule.category_id = data.res_id
+            )
+            """,
+            (categories,),
+        )
+    env["hr.contract"].invalidate_model(["structure_type_id"])
+    env["hr.payroll.structure"].invalidate_model(["type_id", "active"])
+    env["hr.salary.rule"].invalidate_model(["active"])
+
+
 @openupgrade.migrate()
 def migrate(env, version):
     _move_withholding_variation(env)
@@ -165,3 +318,4 @@ def migrate(env, version):
     _move_country_code(env)
     _split_tax_treatment_option(env)
     _move_tax_treatment_category(env)
+    _keep_dropped_structures_apart(env)
