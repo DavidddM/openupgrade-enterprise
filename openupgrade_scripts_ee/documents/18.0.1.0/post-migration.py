@@ -6,7 +6,7 @@ from openupgradelib import openupgrade
 from psycopg2 import sql
 
 from odoo import Command
-from odoo.upgrade.lib import relation
+from odoo.upgrade.lib import data, relation
 
 _logger = logging.getLogger(__name__)
 
@@ -147,9 +147,23 @@ def _access_from_groups(env):
     )
 
 
+def _server_actions(env):
+    """Create the 18.0 document server actions that an update skips.
+
+    They are ``forcecreate="0"`` records of a ``noupdate`` block, so the update
+    from 17.0, which had none of them, does not create them; documents_sign,
+    which 18.0 installs during the same update when sign comes in (the 18.0
+    l10n_in_reports depends on sign), refers to the activity action and its
+    load would abort. The actions that need the 18.0 tags, which a 17.0
+    database does not have, are left out.
+    """
+    data.load_missing_records(env, "documents", "data/ir_actions_server_data.xml")
+
+
 @openupgrade.migrate()
 def migrate(env, version):
     _cleanup_stale_model_data(env)
     _drop_facet_fk_constraint(env)
     _administrators_keep_full_access(env)
     _access_from_groups(env)
+    _server_actions(env)
