@@ -18,7 +18,9 @@ def _populate_asset_model_m2m(env):
         FROM account_account
         WHERE {old_column} IS NOT NULL
         ON CONFLICT DO NOTHING
-        """.format(old_column=openupgrade.get_legacy_name("asset_model")),
+        """.format(
+            old_column=openupgrade.get_legacy_name("asset_model")
+        ),
     )
 
 

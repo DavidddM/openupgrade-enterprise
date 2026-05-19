@@ -33,7 +33,8 @@ def _migrate_project_id_from_company_dependent(env):
         FROM (
             SELECT DISTINCT ON (template_id)
                 CAST(SPLIT_PART(ip.res_id, ',', 2) AS integer) AS template_id,
-                CAST(SPLIT_PART(ip.value_reference, ',', 2) AS integer) AS project_id_int
+                CAST(SPLIT_PART(ip.value_reference, ',', 2) AS integer)
+                    AS project_id_int
             FROM ir_property ip
             JOIN ir_model_fields imf ON imf.id = ip.fields_id
             WHERE imf.model = 'planning.slot.template'

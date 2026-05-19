@@ -14,7 +14,6 @@ _column_renames = {
     ],
 }
 
-# These columns may not exist if they were non-stored computes in v17
 _optional_column_renames = {
     "hr_contract": [
         ("l10n_au_tax_treatment_option", None),

@@ -12,13 +12,12 @@ def _copy_l10n_ke_disabled_to_disabled(env):
 
     The hr_payroll module creates the disabled column during its update (before
     l10n_ke_hr_payroll runs), so we cannot rename — we copy the data instead.
-    OpenUpgrade preserves the old l10n_ke_disabled column automatically.
+    OpenUpgrade preserves the old l10n_ke_disabled column automatically. When
+    the disabled column does not exist yet, the 17.0 column is renamed to it.
     """
     if not openupgrade.column_exists(env.cr, "hr_employee", "l10n_ke_disabled"):
         return
     if not openupgrade.column_exists(env.cr, "hr_employee", "disabled"):
-        # disabled column not yet created (hr_payroll hasn't run yet);
-        # fall back to a simple rename
         openupgrade.rename_columns(
             env.cr, {"hr_employee": [("l10n_ke_disabled", "disabled")]}
         )

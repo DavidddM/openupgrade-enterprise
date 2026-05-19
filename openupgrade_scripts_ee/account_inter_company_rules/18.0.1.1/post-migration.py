@@ -15,7 +15,9 @@ def _map_rule_type_to_boolean(env):
         UPDATE res_company
         SET intercompany_generate_bills_refund = True
         WHERE {} = 'invoice_and_refund'
-        """.format(openupgrade.get_legacy_name("rule_type")),
+        """.format(
+            openupgrade.get_legacy_name("rule_type")
+        ),
     )
 
 

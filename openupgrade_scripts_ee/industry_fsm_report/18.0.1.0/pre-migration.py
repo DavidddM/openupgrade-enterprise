@@ -26,7 +26,6 @@ def migrate(env, version):
         """
     )
     if env.cr.fetchone():
-        # Target exists - delete the old one, keep the new
         openupgrade.logged_query(
             env.cr,
             """

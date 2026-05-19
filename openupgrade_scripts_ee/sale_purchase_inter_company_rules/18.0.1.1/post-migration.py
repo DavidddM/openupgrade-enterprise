@@ -20,7 +20,9 @@ def _map_rule_type_to_booleans(env):
         UPDATE res_company
         SET intercompany_generate_sales_orders = True
         WHERE {} IN ('sale', 'sale_purchase')
-        """.format(ou_rule_type),
+        """.format(
+            ou_rule_type
+        ),
     )
     openupgrade.logged_query(
         env.cr,
@@ -28,7 +30,9 @@ def _map_rule_type_to_booleans(env):
         UPDATE res_company
         SET intercompany_generate_purchase_orders = True
         WHERE {} IN ('purchase', 'sale_purchase')
-        """.format(ou_rule_type),
+        """.format(
+            ou_rule_type
+        ),
     )
 
 

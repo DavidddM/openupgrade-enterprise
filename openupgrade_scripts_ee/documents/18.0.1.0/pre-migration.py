@@ -372,10 +372,11 @@ def _remap_child_module_fks(env):
     """Remap FK columns in child modules from folder IDs to document IDs.
 
     Each column is guarded by column_exists so that modules not installed
-    are silently skipped.
+    are silently skipped. The last three columns are listed under the names
+    openupgrade.rename_fields gave them earlier, the others under their 17.0
+    names.
     """
     fk_remaps = [
-        # (table, column) - columns with original names
         ("res_company", "approvals_folder_id"),
         ("res_company", "documents_fleet_folder"),
         ("res_company", "documents_hr_folder"),
@@ -385,7 +386,6 @@ def _remap_child_module_fks(env):
         ("sign_template", "folder_id"),
         ("documents_account_folder_setting", "folder_id"),
         ("mail_activity_type", "folder_id"),
-        # Columns renamed by openupgrade.rename_fields earlier
         ("res_company", "account_folder_id"),
         ("res_company", "product_folder_id"),
         ("res_company", "document_spreadsheet_folder_id"),

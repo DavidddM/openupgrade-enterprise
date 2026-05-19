@@ -80,7 +80,8 @@ def _rename_opening_date_filter_keys(env):
     The community OpenUpgrade account/18.0.1.3 pre-migration has this conversion
     backwards (previous_* → last_*, which is a no-op on 17.0 data). Without
     correction, the ORM crashes during flush/recompute with:
-        ValueError: Wrong value for account.report.default_opening_date_filter: 'last_month'
+        ValueError: Wrong value for
+        account.report.default_opening_date_filter: 'last_month'
 
     We compensate here because account_reports extends account.report and its 18.0
     data files depend on previous_* values. This runs after the community account
