@@ -44,17 +44,7 @@ def _migrate_tax_closing_activity_res_model(env):
     )
 
 
-def _delete_obsolete_records(env):
-    openupgrade.delete_records_safely_by_xml_id(
-        env,
-        [
-            "account_reports.default_followup_trust",
-        ],
-    )
-
-
 @openupgrade.migrate()
 def migrate(env, version):
     _fill_tax_closing_report_id(env)
     _migrate_tax_closing_activity_res_model(env)
-    _delete_obsolete_records(env)

@@ -165,8 +165,9 @@ def _split_deferred_settings(env):
 def _ensure_accountant_module(env):
     """Mark the ``accountant`` module for installation if not already installed.
 
-    In v18, ``account_accountant`` depends on the new ``accountant`` module
-    which must be present for the upgrade to complete.
+    18.0 moves the Accounting application to the new ``accountant`` module,
+    which depends on ``account_accountant`` (the 17.0 application), so a
+    17.0 database keeps its application through the upgrade.
     """
     openupgrade.logged_query(
         env.cr,
