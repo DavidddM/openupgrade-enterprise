@@ -3,57 +3,64 @@
 # OpenUpgrade Enterprise E2E batches, 17.0 -> 18.0, without demo data.
 #
 # Runs scripts/run_e2e_test.sh once per batch, one database at a time
-# (oue18_batch_<name>), and prints one row per batch at the end: runner exit,
-# failing phase, verify checks passed / failed / skipped, ERROR and CRITICAL
-# records of the upgrade log, time and runner log. Every module that has a
-# script under openupgrade_scripts_ee is installed by at least one batch;
-# l10n_mx_edi, l10n_ec_edi, l10n_pe_edi and mrp_plm, whose certificate and
-# document many2one fields change comodel, only by the crit and cert batches
-# (and l10n_ec_edi by cdep).
+# (oue18_batch_<name>): install the batch on 17.0, seed it with
+# scripts/seed_v17.py, upgrade it to 18.0 and check it with
+# scripts/verify_v18.sql. Prints one row per batch at the end: runner exit,
+# failing phase, checks passed / failed / skipped, ERROR and CRITICAL records
+# of the upgrade log, time and runner log.
 #
-# Batches (MODULES use 17.0 module names, account_sepa is the 17.0 name of
-# account_iso20022):
-#   acc       accounting: accountant, reports, assets (+fleet), budget (+project),
-#             SEPA credit transfer and direct debit, inter-company rules
-#   hr        payroll core, appraisal (+survey), salary configurator, referral,
-#             planning, forecast
-#   prod      documents, spreadsheet, studio, WhatsApp, VoIP, IoT, approvals,
-#             social marketing (all networks), MPS
-#   svc       appointment (+crm), frontdesk, helpdesk (+timesheet billing),
-#             field service report, worksheet, timesheet billing, subscription,
-#             rental (+stock, +website), eCommerce dashboard, Sendcloud, FedEx
-#   l10n      DE reports, BE CodaBox, AR, CL and NL certificate localizations
-#   pay       AU, BE, CH and KE payroll
-#   crit      l10n_mx_edi, l10n_ec_edi, l10n_pe_edi, mrp_plm together
-#   crit_mx, crit_ec, crit_pe, crit_plm   the same modules one per database
-#   cert_ar, cert_cl, cert_nl, cert_be    l10n_ar_edi, l10n_cl_edi,
-#             l10n_nl_reports_sbr, l10n_be_hr_payroll one per database, for
-#             a certificate seed of their own (SEED_PY)
-#   cert      the seven certificate localizations (AR, CL, NL, BE, MX, EC, PE)
-#             together, so their certificates migrate in one database
-#   cdep_acc  company-dependent fields of accounting: follow-up, payroll
-#             accounts and journals, DATEV (company numbers and the partner
-#             identifiers that become company-dependent)
-#   cdep_svc  company-dependent fields of services: rental prices and
-#             preparation time, field service worksheet, helpdesk SLA of a
-#             service (moved from the product to the policy)
-#   cdep      cdep_acc, cdep_svc and l10n_ec_edi (EC withholding taxes)
-#             together; crit_ec covers the EC fields on their own
-#   Each list can be overridden with BATCH_<NAME> (upper case), e.g. BATCH_HR.
+# Every module with a script under openupgrade_scripts_ee is installed,
+# seeded and checked by at least one batch (base by all of them). Each seed
+# block runs when its module is installed and each check skips when its
+# module is not, so a batch that pulls in more modules than it names seeds
+# and checks those too.
+#
+# Batches (MODULES use 17.0 names: account_sepa, hr_payroll_account_sepa and
+# l10n_au_keypay are account_iso20022, hr_payroll_account_iso20022 and
+# l10n_employment_hero in 18.0):
+#   acc      accounting: accountant, reports, assets (+fleet), budget
+#            (+project), SEPA credit transfer and direct debit, inter-company
+#            rules (invoices, orders), follow-up, DATEV
+#   hr       payroll (+accounting, +SEPA), appraisal (+survey), salary
+#            configurator, referral, CV digitization, planning, forecast
+#   pay      AU payroll (+accounting, Employment Hero), BE, CH, KE and LU
+#            payroll
+#   prod     documents, spreadsheet, studio, WhatsApp, VoIP, approvals, sign,
+#            IoT, MPS, work order IoT, PLM
+#   mkt      social marketing: Facebook, Instagram, LinkedIn, push
+#            notifications, X
+#   svc      appointment (+CRM), frontdesk, helpdesk (+timesheet billing),
+#            field service report (+sale), worksheet, timesheet leaderboard
+#   sale     subscription, rental (+stock, +sign, +website), eCommerce
+#            dashboard, Sendcloud, FedEx, Pricer, restaurant appointments,
+#            preparation display, purchase dashboards
+#   sale_mi  Sendcloud and FedEx again, in a database whose name ends in _mi:
+#            the seed selects imperial units there
+#   edi      the certificate localizations together: AR, CL, MX, EC, PE, NL
+#            SBR and BE payroll (accounting installed on 17.0)
+#   edi_inv  EC and PE on an invoicing database: 18.0 installs
+#            account_accountant during the upgrade and reloads their charts
+#   l10n     merged and renamed localizations: MX stock (3.0, 3.1, foreign
+#            trade), BR services, IT Ri.Ba., BE CodaBox, IN GST returns
+#   rem      modules 18.0 removed or folded: TaxCloud and its six bridges,
+#            eBay, customer statements (+UK), BE/US consolidation demo, DK
+#            EDI, FR VAT reimbursement, subcontracting Studio, Twitter walls
+#   Each list can be overridden with BATCH_<NAME> (upper case), e.g. BATCH_HR,
+#   and any other name runs when its BATCH_<NAME> is set.
 #
 # Usage:
 #   CONF17=... CONF18=... scripts/run_e2e_batches.sh         runs BATCHES
-#   CONF17=... CONF18=... scripts/run_e2e_batches.sh hr crit runs the named ones
+#   CONF17=... CONF18=... scripts/run_e2e_batches.sh hr edi  runs the named ones
 #
 # Environment (defaults):
-#   BATCHES="acc hr prod svc l10n pay crit", KEEP_DB=0, RUN_TAG (optional,
-#   appended to the runner log name and to copies of the per-phase logs, so
-#   several attempts keep their evidence), ERROR_ALLOW_RE (optional, passed to
-#   the runner; the table then marks the rows, which are not a validation run),
+#   BATCHES (every batch above), KEEP_DB=0, RUN_TAG (optional, appended to the
+#   runner log name and to copies of the per-phase logs, so several attempts
+#   keep their evidence), ERROR_ALLOW_RE (optional, passed to the runner; the
+#   table then marks the rows, which are not a validation run),
 #   RUNNER=<this directory>/run_e2e_test.sh,
-#   BASE_SQL=<this directory>/seed_companies.sql,
-#   SEED_SQL=<this directory>/seed_test_data.sql,
-#   SEED_PY (unset), VERIFY_SQL=<this directory>/verify_migration.sql;
+#   SEED_PY=<this directory>/seed_v17.py,
+#   VERIFY_SQL=<this directory>/verify_v18.sql,
+#   BASE_SQL and SEED_SQL (unset);
 #   BASE_SQL, SEED_SQL, SEED_PY and VERIFY_SQL set to an empty value disable
 #   that step. LOG_DIR=${TMPDIR:-/tmp}/oue18_e2e_logs. CONF17, CONF18, PYLIB,
 #   DROP_DB_CMD, ODOO17, ODOO18, VENV17, VENV18 and DB_* are passed to the
@@ -66,35 +73,28 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="${RUNNER:-${SCRIPT_DIR}/run_e2e_test.sh}"
-BASE_SQL="${BASE_SQL-${SCRIPT_DIR}/seed_companies.sql}"
-SEED_SQL="${SEED_SQL-${SCRIPT_DIR}/seed_test_data.sql}"
-SEED_PY="${SEED_PY-}"
-VERIFY_SQL="${VERIFY_SQL-${SCRIPT_DIR}/verify_migration.sql}"
+BASE_SQL="${BASE_SQL-}"
+SEED_SQL="${SEED_SQL-}"
+SEED_PY="${SEED_PY-${SCRIPT_DIR}/seed_v17.py}"
+VERIFY_SQL="${VERIFY_SQL-${SCRIPT_DIR}/verify_v18.sql}"
 LOG_DIR="${LOG_DIR:-${TMPDIR:-/tmp}/oue18_e2e_logs}"
 KEEP_DB="${KEEP_DB:-0}"
 RUN_TAG="${RUN_TAG:-}"
 ERROR_ALLOW_RE="${ERROR_ALLOW_RE:-}"
-BATCHES="${BATCHES:-acc hr prod svc l10n pay crit}"
+BATCHES="${BATCHES:-acc hr pay prod mkt svc sale sale_mi edi edi_inv l10n rem}"
 
-BATCH_ACC="${BATCH_ACC:-account_accountant,account_reports,account_asset,account_asset_fleet,account_budget,project_account_budget,account_sepa,account_sepa_direct_debit,account_inter_company_rules,sale_purchase_inter_company_rules}"
-BATCH_HR="${BATCH_HR:-hr_payroll,hr_appraisal,hr_appraisal_survey,hr_contract_salary,hr_referral,planning,project_forecast}"
-BATCH_PROD="${BATCH_PROD:-documents,spreadsheet_edition,web_studio,whatsapp,voip,iot,approvals,social,social_facebook,social_instagram,social_linkedin,social_push_notifications,social_twitter,mrp_mps}"
-BATCH_SVC="${BATCH_SVC:-appointment,appointment_crm,frontdesk,helpdesk,helpdesk_sale_timesheet,industry_fsm_report,worksheet,sale_timesheet_enterprise,sale_subscription,sale_renting,sale_stock_renting,website_sale_renting,website_sale_dashboard,website_delivery_sendcloud,website_sale_fedex}"
-BATCH_L10N="${BATCH_L10N:-l10n_de_reports,l10n_be_codabox,l10n_ar_edi,l10n_cl_edi,l10n_nl_reports_sbr}"
-BATCH_PAY="${BATCH_PAY:-l10n_au_hr_payroll,l10n_be_hr_payroll,l10n_ch_hr_payroll,l10n_ke_hr_payroll}"
-BATCH_CRIT_MX="${BATCH_CRIT_MX:-l10n_mx_edi}"
-BATCH_CRIT_EC="${BATCH_CRIT_EC:-l10n_ec_edi}"
-BATCH_CRIT_PE="${BATCH_CRIT_PE:-l10n_pe_edi}"
-BATCH_CRIT_PLM="${BATCH_CRIT_PLM:-mrp_plm}"
-BATCH_CRIT="${BATCH_CRIT:-${BATCH_CRIT_MX},${BATCH_CRIT_EC},${BATCH_CRIT_PE},${BATCH_CRIT_PLM}}"
-BATCH_CERT_AR="${BATCH_CERT_AR:-l10n_ar_edi}"
-BATCH_CERT_CL="${BATCH_CERT_CL:-l10n_cl_edi}"
-BATCH_CERT_NL="${BATCH_CERT_NL:-l10n_nl_reports_sbr}"
-BATCH_CERT_BE="${BATCH_CERT_BE:-l10n_be_hr_payroll}"
-BATCH_CERT="${BATCH_CERT:-${BATCH_CERT_AR},${BATCH_CERT_CL},${BATCH_CERT_NL},${BATCH_CERT_BE},${BATCH_CRIT_MX},${BATCH_CRIT_EC},${BATCH_CRIT_PE}}"
-BATCH_CDEP_ACC="${BATCH_CDEP_ACC:-account_followup,hr_payroll_account,l10n_de_reports}"
-BATCH_CDEP_SVC="${BATCH_CDEP_SVC:-sale_stock_renting,industry_fsm_sale_report,helpdesk_sale_timesheet}"
-BATCH_CDEP="${BATCH_CDEP:-${BATCH_CDEP_ACC},${BATCH_CDEP_SVC},${BATCH_CRIT_EC}}"
+BATCH_ACC="${BATCH_ACC:-account_accountant,account_reports,account_asset,account_asset_fleet,account_budget,project_account_budget,account_sepa,account_sepa_direct_debit,account_inter_company_rules,sale_purchase_inter_company_rules,account_followup,l10n_de_reports}"
+BATCH_HR="${BATCH_HR:-hr_payroll,hr_payroll_account,hr_payroll_account_sepa,hr_appraisal,hr_appraisal_survey,hr_contract_salary,hr_referral,hr_recruitment_extract,planning,project_forecast}"
+BATCH_PAY="${BATCH_PAY:-l10n_au_hr_payroll,l10n_au_hr_payroll_account,l10n_au_keypay,l10n_be_hr_payroll,l10n_ch_hr_payroll,l10n_ke_hr_payroll,l10n_lu_hr_payroll}"
+BATCH_PROD="${BATCH_PROD:-documents,spreadsheet_edition,web_studio,whatsapp,voip,approvals,sign,iot,mrp_mps,mrp_workorder_iot,mrp_plm}"
+BATCH_MKT="${BATCH_MKT:-social,social_facebook,social_instagram,social_linkedin,social_push_notifications,social_twitter}"
+BATCH_SVC="${BATCH_SVC:-appointment,appointment_crm,frontdesk,helpdesk,helpdesk_sale_timesheet,industry_fsm_report,industry_fsm_sale_report,worksheet,sale_timesheet_enterprise}"
+BATCH_SALE="${BATCH_SALE:-sale_subscription,sale_renting,sale_stock_renting,sale_renting_sign,website_sale_renting,website_sale_dashboard,website_delivery_sendcloud,website_sale_fedex,pos_pricer,pos_restaurant_appointment,pos_self_order_preparation_display,purchase_stock,spreadsheet_dashboard}"
+BATCH_SALE_MI="${BATCH_SALE_MI:-website_delivery_sendcloud,website_sale_fedex}"
+BATCH_EDI="${BATCH_EDI:-l10n_ar_edi,l10n_cl_edi,l10n_mx_edi,l10n_ec_edi,l10n_pe_edi,l10n_nl_reports_sbr,l10n_be_hr_payroll}"
+BATCH_EDI_INV="${BATCH_EDI_INV:-l10n_ec_edi,l10n_pe_edi}"
+BATCH_L10N="${BATCH_L10N:-l10n_mx_edi_stock,l10n_mx_edi_extended,l10n_br_avatax,l10n_br_edi,l10n_br_edi_sale,l10n_it_riba,l10n_be_codabox,l10n_in_reports_gstr}"
+BATCH_REM="${BATCH_REM:-account_taxcloud,sale_account_taxcloud,sale_amazon_taxcloud,sale_loyalty_taxcloud,sale_loyalty_taxcloud_delivery,sale_subscription_taxcloud,website_sale_account_taxcloud,sale_ebay,l10n_account_customer_statements,l10n_uk_customer_statements,l10n_be_us_consolidation_demo,l10n_dk_edi,l10n_fr_reports_extended,mrp_subcontracting_studio,website_twitter_wall,website_event_twitter_wall}"
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
